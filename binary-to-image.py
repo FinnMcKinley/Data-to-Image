@@ -92,7 +92,7 @@ def binary_to_text(binary_strings):
     print(f'Text is:\n{text}') # DEBUG
     return text
         
-def binary_to_grey_image(image_width, image_height, binary_data):
+def binary_to_grey_image(image_width, image_height, binary_data, image_name='outputGrey.png'):
     """ Takes the image dimensions and binary data and creates an image file from it 
         image_width in pixels (integer)
         image_height in pixels (integer)
@@ -112,16 +112,16 @@ def binary_to_grey_image(image_width, image_height, binary_data):
     image = Image.new('L', (image_width, image_height))
     image.putdata(byte_values)
     image.show()
-    image.save('outputGrey.png')
+    image.save(image_name)
 
     print('Success! Image created') # DEBUG
     end_time = time.perf_counter()
     elapsed = end_time - function_start_time
-    print(f'binary_to_RGB time taken: {elapsed:.4f} s')
-    print(f'{(len(binary_data) / 1_000_000) / (end_time - PROGRAM_START_TIME):.2f} MB/s')
+    print(f'{len(binary_data / 1_000_000)} MB of data converted to images in {elapsed:.4f} s')
+    print(f'Data processed at {(len(binary_data) / 1_000_000) / (end_time - PROGRAM_START_TIME):.2f} MB/s')
     return 1 # Done!
 
-def binary_to_RGB_image(image_width, image_height, binary_data):
+def binary_to_RGB_image(image_width, image_height, binary_data, image_name='outputRGB.png'):
     """ Takes the image dimensions and binary data and creates an image file from it 
         image_width in pixels (integer)
         image_height in pixels (integer)
@@ -144,26 +144,67 @@ def binary_to_RGB_image(image_width, image_height, binary_data):
     image = Image.new('RGB', (image_width, image_height))
     image.putdata(pixel_values)
     image.show()
-    image.save('outputRGB.png')
+    image.save(image_name)
 
     print('Success! Image created') # DEBUG
     end_time = time.perf_counter()
     elapsed = end_time - function_start_time
-    print(f'binary_to_RGB time taken: {elapsed:.4f} s')
-    print(f'{(len(binary_data) / 1_000_000) / (end_time - PROGRAM_START_TIME):.2f} MB/s')
+    print(f'{len(binary_data / 1_000_000)} MB of data converted to images in {elapsed:.4f} s')
+    print(f'Data processed at {(len(binary_data) / 1_000_000) / (end_time - PROGRAM_START_TIME):.2f} MB/s')
     return 1 # Done!
     
 def compare_data(input_data, output_data):
     """ Compares input_data against output_data for inconsistencies
         Files must be of same type and order 
     """
-    correct_data = 0
-    for i in range(len(output_data)):
-        if input_data[i] == output_data[i]:
-            correct_data += 1
+    print('Data testing started')
+    try:
+        correct_data = 0
+        for i in range(len(output_data)):
+            if input_data[i] == output_data[i]:
+                correct_data += 1
+    except IndexError:
+        print('IndexError: Some data must be missing!')
     print(f'Data compared, {correct_data} correct datapoints vs {len(input_data)} datapoints -> {correct_data / len(input_data) * 100}% accurate')
     return 1 # Done!
 
+def extract_image_data(imagepath, mode='RGB', outpath='output_data.bin'):
+    """ Extracts the binary data from an image and returns it - default mode is RGB, but L can also be used for grey """
+    function_start_time = time.perf_counter()
+    try:
+        img = Image.open(imagepath) # Opens image
+        img = img.convert(mode.upper()) # Uses the specified mode
+        
+        pixels = list(img.getdata()) # Collects pixel data
+
+        # Converts pixel data to binary
+        binary_data = ''
+        if mode.upper() == 'L':
+            # Greyscale
+            for pixel in pixels:
+                binary_data += f'{pixel:08b}'
+        elif mode.upper() == 'RGB':
+            # RGB 3 Channels
+            for r, g, b in pixels:
+                binary_data += f'{r:08b}{g:08b}{b:08b}'
+    except ValueError:
+        print(f'ValueError: Unsupported mode. Use "L" or "RGB".')
+    except FileNotFoundError:
+        print(f'File not found: Try checking your spelling and file type')
+
+    with open(outpath, 'wb') as f:
+        for i in range(0, len(binary_data), 8):
+            byte = int(binary_data[i:i+8], 2)
+            f.write(bytes([byte]))
+        
+    # DEBUG
+    end_time = time.perf_counter()
+    print('Success! Image extracted')
+    # print(binary_data) # DEBUG
+    elapsed = end_time - function_start_time
+    print(f'{len(binary_data) / 8 / 1_000_000 } MB of image data extracted in {elapsed:.2f} s')
+    print(f'Data extracted at {(len(binary_data) / 1_000_000) / (end_time - PROGRAM_START_TIME):.2f} MB/s')
+    return binary_data
 
 
 # binary_strings = binary_only_input()
@@ -171,7 +212,8 @@ def compare_data(input_data, output_data):
 # binary_to_text(binary_strings)
 # text_to_binary()
 # binary_to_grey_image(image_width=1024, image_height=1024, binary_data=text_file_to_binary('pi.txt'))
-binary_to_RGB_image(image_width=2058, image_height=2058, binary_data=text_file_to_binary('Hamilton/shakespeare.txt'))
+# binary_to_RGB_image(image_width=2058, image_height=2058, binary_data=text_file_to_binary('Hamilton/shakespeare.txt'))
+# extract_image_data('outputRGB.png', 'RGB')
 
 def test_against_pi():
     pi_binary = text_file_to_binary('pi.txt')
@@ -180,6 +222,45 @@ def test_against_pi():
         real_pi = file.read()   
     compare_data(real_pi, output_pi)
 
+    
+
+def test1(inputfile, outputfile):
+    function_start_time = time.perf_counter()
+    in_binary = text_file_to_binary(inputfile)
+    out_binary = text_file_to_binary(outputfile)
+    compare_data(in_binary, out_binary)
+
+    end_time = time.perf_counter()
+    elapsed = end_time - function_start_time
+    print(f'test1 time taken: {elapsed:.4f} s')
+
+# test1('pi.txt', 'output_data.bin')
+
+def complete_test(input_text, mode='RGB'):
+    """ Complete Testing Scenario using input_text filepath 
+        Use mode='RGB' for RGB or 'L' for grey 
+    """
+    function_start_time = time.perf_counter()
+
+    # TEST
+    in_binary = text_file_to_binary(input_text)
+    if mode.upper() == 'RGB':
+        binary_to_RGB_image(image_width=2048, image_height=2048, binary_data=in_binary, image_name='TEST_output.png')
+        extract_image_data('TEST_output.png', 'RGB', 'TEST_output.bin')
+    elif mode.upper() == 'L':
+        binary_to_grey_image(image_width=2048, image_height=2048, binary_data=in_binary, image_name='TEST_output.png')
+        extract_image_data('TEST_output.png', 'L', 'TEST_output.bin')
+    else: 
+        print('How do you fuck up a test you buffoon')
+    out_binary = text_file_to_binary('TEST_output.bin')
+    compare_data(in_binary, out_binary)
+    # END TEST
+
+    end_time = time.perf_counter()
+    elapsed = end_time - function_start_time
+    print(f'Test time taken: {elapsed:.4f} s')
+
+complete_test('pi.txt', 'RGB')
 # test_against_pi()
 
 # END TIMER
