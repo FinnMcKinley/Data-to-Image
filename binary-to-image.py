@@ -214,19 +214,18 @@ def extract_image_data(imagepath, mode='RGB', outpath='output_data.bin'):
         elif mode.upper() == 'RGB':
             # RGB 3 Channels
 
-            # Reads header seperately
-            header_chunks = [value for pixel in pixels[:2] for value in pixel] # 2 RGB Values -> 6 Bytes (But only 4 used)
-            header = ''.join(f'{chunk:08b}' for chunk in header_chunks[:4]) # 4 * 8-bits -> 32-bit header
-            valid_data_length = int(header, 2) # Bytes of data (3 * number of pixels)
+            # Flatten all RGB values
+            all_channels = [value for pixel in pixels for value in pixel]
 
-            # Messy 2 bytes from the remainder of the pixel data used in the header
-            remaining_data = header_chunks[4:6]
-            binary_data = ''.join(f'{b:08b}' for b in remaining_data)
+            # Extract 32-bit header from first 4 bytes
+            header_bits = ''.join(f'{b:08b}' for b in all_channels[:4])
+            valid_data_length = int(header_bits, 2)  # total bits
 
-            # Reads Pixel Data
-            num_pixels = (valid_data_length - 16) // 24
-            for r, g, b in pixels[2: 2 + num_pixels]:
-                binary_data += f'{r:08b}{g:08b}{b:08b}'
+            # Extract all remaining
+            binary_data = ''.join(f'{b:08b}' for b in all_channels[4:])
+
+            # Cut to exact bit length
+            binary_data = binary_data[:valid_data_length]
 
         # Writes to file
         with open(outpath, 'wb') as f:
@@ -312,7 +311,7 @@ def complete_test(input_text, mode='RGB', ouput_name='TEST_output.bin'):
 
 # complete_test(input_text='pi.txt', mode='L')
 # test_against_pi()
-complete_test(input_text='pi.txt', mode='L', ouput_name='LTEST.bin')
+# complete_test(input_text='pi.txt', mode='L', ouput_name='LTEST.bin')
 complete_test(input_text='pi.txt', mode='RGB', ouput_name='RGBTEST.bin')
 
 # END TIMER
