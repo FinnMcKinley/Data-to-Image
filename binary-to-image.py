@@ -101,6 +101,13 @@ def binary_to_grey_image(image_width, image_height, binary_data, image_name='out
     function_start_time = time.perf_counter()
     # Ensure correct amount of binary data
     pixel_count = image_width * image_height
+
+    data_length = len(binary_data) * 8 # Length in bits
+    header = f'{data_length:032b}' # 32-bit string header
+    header_chunks = [header[i: i + 8] for i in range(0, 32, 8)] # Converts 32-bit string to 8-bit chunks
+
+    binary_data = header_chunks + binary_data # Appends header to the start of the binary data
+
     while len(binary_data) < pixel_count:
         binary_data.append('00000000')
     if len(binary_data) > pixel_count:
@@ -117,7 +124,7 @@ def binary_to_grey_image(image_width, image_height, binary_data, image_name='out
     print('Success! Image created') # DEBUG
     end_time = time.perf_counter()
     elapsed = end_time - function_start_time
-    print(f'{len(binary_data / 1_000_000)} MB of data converted to images in {elapsed:.4f} s')
+    print(f'{(len(binary_data) / 1_000_000)} MB of data converted to images in {elapsed:.4f} s')
     print(f'Data processed at {(len(binary_data) / 1_000_000) / (end_time - PROGRAM_START_TIME):.2f} MB/s')
     return 1 # Done!
 
@@ -131,6 +138,12 @@ def binary_to_RGB_image(image_width, image_height, binary_data, image_name='outp
 
     # Ensure correct amount of binary data
     pixel_count = image_width * image_height
+
+    data_length = len(binary_data) * 8 # Length in bits
+    header = f'{data_length:032b}' # 32-bit string header
+    header_chunks = [header[i: i + 8] for i in range(0, 32, 8)] # Converts 32-bit string to 8-bit chunks
+
+    binary_data = header_chunks + binary_data # Appends header to the start of the binary data
     while len(binary_data) < pixel_count * 3:
         binary_data.append('00000000')
     if len(binary_data) > pixel_count * 3:
@@ -149,7 +162,7 @@ def binary_to_RGB_image(image_width, image_height, binary_data, image_name='outp
     print('Success! Image created') # DEBUG
     end_time = time.perf_counter()
     elapsed = end_time - function_start_time
-    print(f'{len(binary_data / 1_000_000)} MB of data converted to images in {elapsed:.4f} s')
+    print(f'{(len(binary_data) / 1_000_000)} MB of data converted to images in {elapsed:.4f} s')
     print(f'Data processed at {(len(binary_data) / 1_000_000) / (end_time - PROGRAM_START_TIME):.2f} MB/s')
     return 1 # Done!
     
@@ -181,21 +194,46 @@ def extract_image_data(imagepath, mode='RGB', outpath='output_data.bin'):
         binary_data = ''
         if mode.upper() == 'L':
             # Greyscale
-            for pixel in pixels:
+            
+            # Reads header seperately
+            header_chunks = pixels[:4]
+            header = ''.join(str(chunk) for chunk in header_chunks)
+            valid_data_length = int(header, 2)
+
+            # Reads Pixel Data
+            for pixel in pixels[4: 4 + valid_data_length // 8]:
                 binary_data += f'{pixel:08b}'
+        
         elif mode.upper() == 'RGB':
             # RGB 3 Channels
-            for r, g, b in pixels:
+
+            # Reads header seperately
+            header_chunks = [value for pixel in pixels[:2] for value in pixel] # 2 RGB Values -> 6 Bytes (But only 4 used)
+            header = ''.join(f'{chunk:08b}' for chunk in header_chunks[:4]) # 4 * 8-bits -> 32-bit header
+            valid_data_length = int(header, 2)
+
+            # Messy 2 bytes from the remainder of the pixel data used in the header
+            remaining_data = header_chunks[4:6]
+            binary_data = ''.join(f'{b:08b}' for b in remaining_data)
+
+            # Reads Pixel Data
+            num_pixels = (valid_data_length - 16) // 24
+            for r, g, b in pixels[2: 2 + num_pixels]:
                 binary_data += f'{r:08b}{g:08b}{b:08b}'
+        
+        # Writes to file
+        with open(outpath, 'wb') as f:
+            for i in range(0, len(binary_data), 8):
+                byte = int(binary_data[i:i+8], 2)
+                f.write(bytes([byte]))
+        
     except ValueError:
         print(f'ValueError: Unsupported mode. Use "L" or "RGB".')
     except FileNotFoundError:
-        print(f'File not found: Try checking your spelling and file type')
-
-    with open(outpath, 'wb') as f:
-        for i in range(0, len(binary_data), 8):
-            byte = int(binary_data[i:i+8], 2)
-            f.write(bytes([byte]))
+        print(f'File not found: {imagepath}    Try checking your spelling and file type')
+    except Exception as e:
+        print(f'An error occured {e}')
+    
         
     # DEBUG
     end_time = time.perf_counter()
@@ -260,7 +298,7 @@ def complete_test(input_text, mode='RGB'):
     elapsed = end_time - function_start_time
     print(f'Test time taken: {elapsed:.4f} s')
 
-complete_test('pi.txt', 'RGB')
+complete_test(input_text='pi.txt', mode='L')
 # test_against_pi()
 
 # END TIMER
